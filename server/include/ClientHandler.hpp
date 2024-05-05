@@ -28,7 +28,7 @@ class ClientHandler {
 public:
     ClientHandler() {}
     ClientHandler(const unsigned int& max_clients);
-    unsigned int AddClient(const struct sockaddr_in& client_addr, const signed int& value);
+    unsigned int AddClient(const struct sockaddr_in& client_addr);
     
     bool RemoveClient(const unsigned int& client_id);
     Client& GetClient(const unsigned int& client_id);

@@ -35,7 +35,13 @@ enum class MessageType {
     REQUEST = 1,
     ACKNOWLEDGE = 2,
     RESPONSE = 3,
-    MISSED_PACKETS = 4
+    MISSED_PACKETS = 4,
+    CONNECT = 5
+};
+
+struct ConnectHeader {
+    unsigned int version_major : 8;
+    unsigned int version_minor : 8;
 };
 
 struct ProtocolHeader {
@@ -46,8 +52,7 @@ struct ProtocolHeader {
 };
 
 struct RequestHeader {
-    unsigned int version_major : 8;
-    unsigned int version_minor : 8;
+    unsigned int client_id;
     signed int value;
 };
 
@@ -55,8 +60,6 @@ struct AcknowledgeHeader {
     unsigned int client_id;
     unsigned int received_packet_number;
 };
-
-
 
 struct ResponseHeader {
     char* data;
@@ -94,7 +97,10 @@ public:
     bool SendMessage(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size, const MessageType& type);
     bool CheckVersion(const unsigned int& version_major, const unsigned int& version_minor);
     bool ProcessRequest(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size);
+    void ProcessMissedPackets(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size);
     void ProcessAcknowledge(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size);
+    void ProcessConnect(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size);
+    void SendAcknowledge(const unsigned int& client_id, const unsigned int& packet_number);
     ToSend DoBusinessLogic(const unsigned int& client_id, const signed int& value);
 
     ~Server();

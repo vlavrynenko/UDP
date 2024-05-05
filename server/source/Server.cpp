@@ -108,33 +108,10 @@ void Server::Run() {
             }
 
             Client client = client_handler_.GetClient(to_send.client_id);
-            /*unsigned int buffer_size;
-            char* buffer;
-            switch(to_send.type) {
-                case MessageType::ACKNOWLEDGE: {
-                    AcknowledgeHeader header;
-                    header.received_packet_number = to_send.data.get()[0];
-                    header.client_id = to_send.client_id;
-                    buffer = new char[sizeof(AcknowledgeHeader) + to_send.buffer_size];
-                    memcpy(buffer, &header, sizeof(header));
-                    memcpy(buffer + sizeof(header), to_send.data, to_send.data_size);
-                    break;
-                }
-                case MessageType::RESPONSE:
-                case MessageType::ERROR:
-                    buffer = new char[to_send.buffer_size];
-                    memcpy(buffer, to_send.data, sizeof(header));
-                    break;
-                }
-                default: {
-                    std::cout << "Unexpected type\n"; 
-                }
-            }*/
             SendMessage(client.client_addr, to_send.data, to_send.data_size, to_send.type);
         }
     });
 
-    //processing_thread_ = std::thread([this](){
     Packet packet;
     ProtocolHeader* header;
     while (true) {
@@ -165,7 +142,12 @@ void Server::Run() {
             }
             case MessageType::MISSED_PACKETS: {
                 std::cout << "Got missed packets\n";
-                //ProcessMissedPackets(packet.client_addr, buffer + sizeof(ProtocolHeader), packet.buffer_size);
+                //ProcessMissedPackets(packet.client_addr, packet.buffer, packet.buffer_size);
+                break;
+            }
+            case MessageType::CONNECT: {
+                std::cout << "Connection request\n";
+                ProcessConnect(packet.client_addr, packet.buffer, packet.buffer_size);
                 break;
             }
             default: {
@@ -173,65 +155,70 @@ void Server::Run() {
             }
         }
     }
-    //});
-    std::cout << "Started processing\n";
+}
 
-    std::cout << "Started sending\n";
-
-    /*working_thread = std::thread([this](){
-        Client client;
-        while (true) {
-            if(clients.empty() == false) {
-                int value = 0;
-                {
-                    std::lock_guard<std::mutex> lock(mx_deque);
-                    client = clients[0];
-                    clients.pop_front();
-                }
-                std::cout << "Client popped #" << client.id << "\n";
-                auto data = std::async(DoBusinessLogic, value);
-
-                std::vector<double> arr;
-                arr.reserve(protocol_conf_.values_amount + 1);
-                arr.push_back(sizeof(double) * protocol_conf_.values_amount);
-                for(int i = 1; i < protocol_conf_.values_amount + 1; ++i) {
-                    arr.push_back(i);
-                    if (i % 100000 == 0) {
-                        std::cout << arr.size() << "\n";
-                    }
-                }
-                std::cout << "Vector filled " << arr[0] << "\n";
-
-                struct sockaddr_in client_addr = client.client_addr;
-                socklen_t len = sizeof(client_addr);
-
-                int sent_bytes = 0;
-                int remaining_bytes = arr.size() * sizeof(double);
-                std::cout << "Arr size: " << remaining_bytes << "\n";
-                char *buffer = reinterpret_cast<char*>(arr.data());
-                int counter = 0;
-                while (remaining_bytes > 0) {
-                    ++counter;
-                    //std::cout << "remaining_bytes: " << remaining_bytes << "\n";
-                    int bytes_to_send = std::min(remaining_bytes, MAX_PACKET_SIZE);
-                    //std::cout << "bytes_to_send: " << bytes_to_send << "\n";
-                    int bytes_sent = sendto(sockfd, buffer + sent_bytes, bytes_to_send, 0, 
-                                            (struct sockaddr *)&client_addr, sizeof(client_addr));
-                    //std::cout << "bytes_sent: " << bytes_sent << "\n";
-                    if (bytes_sent < 0) {
-                        std::cerr << "Error sending data\n";
-                        break;
-                    }
-                    sent_bytes += bytes_sent;
-                    remaining_bytes -= bytes_sent;
-                    sleep(0.01);
-                }
-                std::cout << "packets sent: " << counter << "\n";
-
-                std::cout << "Message sent " << client.id << "\n";
-            }
+void Server::ProcessMissedPackets(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size) {
+    ProtocolHeader* p_header = reinterpret_cast<ProtocolHeader*>(buffer);
+    MissedPacketsHeader* m_header = reinterpret_cast<MissedPacketsHeader*>(buffer + sizeof(ProtocolHeader));
+    Client client = client_handler_.GetClient(m_header->client_id);
+    char* m_buffer = new char(m_header->total_packets_missed * sizeof(double));
+    unsigned short packet_number = 0;
+    unsigned int offset = 0;
+    unsigned int data_offset = 0;
+    unsigned int copy_amount = MAX_PACKET_SIZE;
+    for(unsigned int i = 0; i < m_header->total_packets_missed; ++i) {
+        memcpy(&packet_number, buffer + sizeof(ProtocolHeader) + sizeof(MissedPacketsHeader) + (offset * sizeof(unsigned short)), sizeof(unsigned short));
+        if (packet_number * MAX_PACKET_SIZE > client.data_size) {
+            copy_amount = client.data_size - (packet_number - 1) * MAX_PACKET_SIZE;
         }
-    });*/
+        memcpy(m_buffer + data_offset, client.data + (packet_number - 1) * MAX_PACKET_SIZE, copy_amount);
+        data_offset += MAX_PACKET_SIZE;
+    }
+
+    ToSend to_send;
+    to_send.type = MessageType::RESPONSE;
+    to_send.client_id = m_header->client_id;
+    to_send.data_size = (m_header->total_packets_missed - 1) * sizeof(double) + copy_amount;
+    to_send.data = m_buffer;
+
+    {
+        std::lock_guard<std::mutex> lock(mx_deque_sending_data_);
+        sending_data_.emplace_back(to_send);
+    }
+    
+    delete buffer;
+}
+
+void Server::ProcessConnect(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size) {
+    ProtocolHeader* p_header = reinterpret_cast<ProtocolHeader*>(buffer);
+    ConnectHeader* c_header = reinterpret_cast<ConnectHeader*>(buffer + sizeof(ProtocolHeader));
+    if (!CheckVersion(c_header->version_major, c_header->version_minor)) {
+        std::cout << "Wrong Protocol Version\n";
+        //return false;
+    }
+
+    auto client_id = client_handler_.AddClient(client_addr);
+    std::cout << "Confirm client id: " << client_id << "\n";
+    
+    SendAcknowledge(client_id, p_header->packet_number);
+    delete buffer;
+}
+
+void Server::SendAcknowledge(const unsigned int& client_id, const unsigned int& packet_number) {
+    ToSend ack_to_send;
+    AcknowledgeHeader a_header;
+    a_header.client_id = client_id;
+    a_header.received_packet_number = packet_number;
+    char a_buffer[sizeof(AcknowledgeHeader)];
+    memcpy(a_buffer, &a_header, sizeof(AcknowledgeHeader));
+    ack_to_send.type = MessageType::ACKNOWLEDGE;
+    ack_to_send.client_id = client_id;
+    ack_to_send.data_size = sizeof(AcknowledgeHeader);
+    ack_to_send.data = a_buffer;
+    {
+        std::lock_guard<std::mutex> lock(mx_deque_sending_data_);
+        sending_data_.emplace_back(ack_to_send);
+    }
 }
 
 void Server::ProcessAcknowledge(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size) {
@@ -257,31 +244,8 @@ bool Server::CheckVersion(const unsigned int& version_major, const unsigned int&
 
 bool Server::ProcessRequest(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size) {
     RequestHeader* header = reinterpret_cast<RequestHeader*>(buffer);
-    //int version_major = static_cast<int>(buffer[0]);
-    //int version_minor = static_cast<int>(buffer[1]);
-    //int value = *(reinterpret_cast<int*>(buffer + 2));
-    if (!CheckVersion(header->version_major, header->version_minor)) {
-        std::cout << "Wrong Protocol Version\n";
-        //return false;
-    }
 
-    auto client_id = client_handler_.AddClient(client_addr, header->value);
-    std::cout << "Confirm client id: " << client_id << "\n";
-    ToSend ack_to_send;
-    AcknowledgeHeader a_header;
-    a_header.client_id = client_id;
-    a_header.received_packet_number = 1;
-    char a_buffer[sizeof(AcknowledgeHeader)];
-    memcpy(a_buffer, &a_header, sizeof(AcknowledgeHeader));
-    ack_to_send.type = MessageType::ACKNOWLEDGE;
-    ack_to_send.client_id = client_id;
-    ack_to_send.data_size = sizeof(AcknowledgeHeader);
-    ack_to_send.data = a_buffer;
-    {
-        std::lock_guard<std::mutex> lock(mx_deque_sending_data_);
-        sending_data_.emplace_back(ack_to_send);
-    }
-    ToSend result = DoBusinessLogic(client_id, header->value);
+    ToSend result = DoBusinessLogic(header->client_id, header->value);
     delete (buffer - sizeof(ProtocolHeader));
 
     result.type = MessageType::RESPONSE;
@@ -389,10 +353,8 @@ ToSend Server::DoBusinessLogic(const unsigned int& client_id, const signed int& 
         }
     }
     Client client = client_handler_.GetClient(client_id);
+    client.value = value;
     client.AllocateMemory(arr.size() * sizeof(double));
-    std::cout << "delete Data pointer: " << client.data << "\n";
-    //delete *client.data;
-    std::cout << "Data pointer: " << client.data << "\n";
     memset(client.data, 0, arr.size());
     client.data_size = arr.size() * sizeof(double);
     memcpy(client.data, arr.data(), arr.size() * sizeof(double));

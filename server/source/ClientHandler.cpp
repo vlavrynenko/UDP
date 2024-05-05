@@ -8,10 +8,9 @@ ClientHandler::ClientHandler(const unsigned int& max_clients = 256) {
     }
 }
 
-unsigned int ClientHandler::AddClient(const struct sockaddr_in& client_addr, const signed int& value) {
+unsigned int ClientHandler::AddClient(const struct sockaddr_in& client_addr) {
     Client client;
     client.client_addr = client_addr;
-    client.value = value;
     {
         std::lock_guard<std::mutex> lock(mx_deque_ids_);
         client.id = available_client_ids_[0];
