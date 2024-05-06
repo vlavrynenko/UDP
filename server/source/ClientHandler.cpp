@@ -44,6 +44,10 @@ bool ClientHandler::RemoveClient(const unsigned int& client_id) {
 Client& ClientHandler::GetClient(const unsigned int& client_id) {
     return clients_[client_id];
 }
+
+char* Client::GetDataByOffset(const unsigned int& offset) {
+    return data + offset;
+}
 /*Client::~Client() {
     delete data;
 }*/
@@ -51,6 +55,15 @@ Client& ClientHandler::GetClient(const unsigned int& client_id) {
 bool Client::AllocateMemory(const unsigned int& size) {
     try {
         data = new char[size]();
+    } catch (...) {
+        std::cout << "Caught exception\n";
+    }
+    return true;
+}
+
+bool Client::AllocateMemoryMissedPackets(const unsigned int& size) {
+    try {
+        missed_packets = new unsigned short[size]();
     } catch (...) {
         std::cout << "Caught exception\n";
     }

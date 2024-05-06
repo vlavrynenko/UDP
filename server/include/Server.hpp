@@ -66,9 +66,8 @@ struct ResponseHeader {
 };
 
 struct MissedPacketsHeader {
-    unsigned int client_id;
-    unsigned int total_packets_missed;
-    char* packet_numbers_missed;
+    unsigned int client_id : 8;
+    unsigned int total_packets_missed : 16;
 };
 
 struct Packet {
@@ -82,6 +81,8 @@ struct ToSend {
     unsigned int client_id;
     unsigned int data_size;
     char* data;
+    bool custom_packet_number;
+    unsigned short* packet_numbers;
 };
 
 class Server {
@@ -94,7 +95,7 @@ public:
     bool StartServer();
     void ReadConfigs();
     //bool AddClient(const struct sockaddr_in& client_addr, char* buffer, const int& buffer_size);
-    bool SendMessage(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size, const MessageType& type);
+    bool SendMessage(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size, const MessageType& type, unsigned short* packet_numbers = nullptr);
     bool CheckVersion(const unsigned int& version_major, const unsigned int& version_minor);
     bool ProcessRequest(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size);
     void ProcessMissedPackets(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size);

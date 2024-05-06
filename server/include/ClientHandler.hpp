@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include <deque>
+#include <vector>
 #include <mutex>
 
 #ifdef _WIN32
@@ -21,7 +22,10 @@ struct Client {
     struct sockaddr_in client_addr;
     char* data;
     unsigned int data_size;
+    unsigned short* missed_packets;
+    char* GetDataByOffset(const unsigned int& offset);
     bool AllocateMemory(const unsigned int& size);
+    bool AllocateMemoryMissedPackets(const unsigned int& size);
 };
 
 class ClientHandler {
@@ -33,11 +37,11 @@ public:
     bool RemoveClient(const unsigned int& client_id);
     Client& GetClient(const unsigned int& client_id);
     ~ClientHandler();
+    std::vector<Client> clients_;
 private:
     std::mutex mx_deque_clients_;
     std::mutex mx_deque_ids_;
     std::deque<unsigned int> available_client_ids_;
-    std::deque<Client> clients_;
     unsigned int last_client_id_;
 };
 

@@ -106,9 +106,21 @@ void Server::Run() {
             } else {
                 continue;
             }
-
+            
+            unsigned short* packet_numbers;
             Client client = client_handler_.GetClient(to_send.client_id);
-            SendMessage(client.client_addr, to_send.data, to_send.data_size, to_send.type);
+            if (to_send.custom_packet_number == true) {
+                packet_numbers = to_send.packet_numbers;
+            } else {
+                packet_numbers = nullptr;
+            }
+            if (to_send.type == MessageType::RESPONSE) {
+                std::vector<double> arr(1000000);
+                std::cout << "reverse vector size: " << arr.size() << "\n";
+                memcpy(arr.data(), client.data, arr.size() * sizeof(double));
+                std::cout << "reverse vector done" << "\n";
+            }
+            SendMessage(client.client_addr, to_send.data, to_send.data_size, to_send.type, packet_numbers);
         }
     });
 
@@ -142,7 +154,7 @@ void Server::Run() {
             }
             case MessageType::MISSED_PACKETS: {
                 std::cout << "Got missed packets\n";
-                //ProcessMissedPackets(packet.client_addr, packet.buffer, packet.buffer_size);
+                ProcessMissedPackets(packet.client_addr, packet.buffer, packet.buffer_size);
                 break;
             }
             case MessageType::CONNECT: {
@@ -158,35 +170,51 @@ void Server::Run() {
 }
 
 void Server::ProcessMissedPackets(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size) {
+    std::cout << "Start processing missed packets\n";
     ProtocolHeader* p_header = reinterpret_cast<ProtocolHeader*>(buffer);
     MissedPacketsHeader* m_header = reinterpret_cast<MissedPacketsHeader*>(buffer + sizeof(ProtocolHeader));
+    unsigned int packet_data_size = MAX_PACKET_SIZE - sizeof(ProtocolHeader);
+    std::cout << "Server Total missed packets: " << m_header->total_packets_missed << " from client: " << m_header->client_id << " Copy by: " << packet_data_size << "\n";
     Client client = client_handler_.GetClient(m_header->client_id);
-    char* m_buffer = new char(m_header->total_packets_missed * sizeof(double));
+    std::cout << "Allocate: " << m_header->total_packets_missed * packet_data_size << "\n";
+
+    char* m_buffer = new char[m_header->total_packets_missed * packet_data_size];
+    memset(m_buffer, 0, (m_header->total_packets_missed * (packet_data_size)) / sizeof(int));
     unsigned short packet_number = 0;
     unsigned int offset = 0;
     unsigned int data_offset = 0;
-    unsigned int copy_amount = MAX_PACKET_SIZE;
+    unsigned int copy_amount = packet_data_size;
+    unsigned short* packet_numbers = new unsigned short[m_header->total_packets_missed];
+    std::vector<double> db(1000000);
+    memcpy(db.data(), client.GetDataByOffset(0), 1000000 * sizeof(double));
+    std::cout << "Gather data:" << client.data[700000] << "\n";
     for(unsigned int i = 0; i < m_header->total_packets_missed; ++i) {
         memcpy(&packet_number, buffer + sizeof(ProtocolHeader) + sizeof(MissedPacketsHeader) + (offset * sizeof(unsigned short)), sizeof(unsigned short));
-        if (packet_number * MAX_PACKET_SIZE > client.data_size) {
-            copy_amount = client.data_size - (packet_number - 1) * MAX_PACKET_SIZE;
+        packet_numbers[i] = packet_number;
+        ++offset;
+        if (packet_number * packet_data_size > client.data_size) {
+            copy_amount = client.data_size - (packet_number - 1) * packet_data_size;
         }
-        memcpy(m_buffer + data_offset, client.data + (packet_number - 1) * MAX_PACKET_SIZE, copy_amount);
-        data_offset += MAX_PACKET_SIZE;
+        //std::cout << "Copy to: " << data_offset << "\n";
+        memcpy(m_buffer + data_offset, client.GetDataByOffset((packet_number - 1) * packet_data_size), copy_amount);
+        data_offset += packet_data_size;
+        //std::cout << "On: "<< (packet_number - 1) * packet_data_size << " c: " << copy_amount << " packet: " << packet_number << "\n";
     }
 
     ToSend to_send;
     to_send.type = MessageType::RESPONSE;
     to_send.client_id = m_header->client_id;
-    to_send.data_size = (m_header->total_packets_missed - 1) * sizeof(double) + copy_amount;
+    to_send.data_size = (m_header->total_packets_missed - 1) * (MAX_PACKET_SIZE - sizeof(ProtocolHeader)) + copy_amount;
     to_send.data = m_buffer;
+    to_send.custom_packet_number = true;
+    to_send.packet_numbers = packet_numbers;
 
     {
         std::lock_guard<std::mutex> lock(mx_deque_sending_data_);
         sending_data_.emplace_back(to_send);
     }
     
-    delete buffer;
+    //delete buffer;
 }
 
 void Server::ProcessConnect(const struct sockaddr_in client_addr, char* buffer, const unsigned int& buffer_size) {
@@ -201,7 +229,7 @@ void Server::ProcessConnect(const struct sockaddr_in client_addr, char* buffer, 
     std::cout << "Confirm client id: " << client_id << "\n";
     
     SendAcknowledge(client_id, p_header->packet_number);
-    delete buffer;
+    //delete buffer;
 }
 
 void Server::SendAcknowledge(const unsigned int& client_id, const unsigned int& packet_number) {
@@ -217,7 +245,7 @@ void Server::SendAcknowledge(const unsigned int& client_id, const unsigned int& 
     ack_to_send.data = a_buffer;
     {
         std::lock_guard<std::mutex> lock(mx_deque_sending_data_);
-        sending_data_.emplace_back(ack_to_send);
+        sending_data_.push_back(ack_to_send);
     }
 }
 
@@ -246,18 +274,23 @@ bool Server::ProcessRequest(const struct sockaddr_in client_addr, char* buffer, 
     RequestHeader* header = reinterpret_cast<RequestHeader*>(buffer);
 
     ToSend result = DoBusinessLogic(header->client_id, header->value);
-    delete (buffer - sizeof(ProtocolHeader));
+
+    std::vector<double> arr(1000000);
+    //std::cout << "reverse vector size: " << arr.size() << "\n";
+    memcpy(arr.data(), client_handler_.clients_[header->client_id].data, arr.size() * sizeof(double));
+    //std::cout << "reverse vector done" << "\n";
+    //delete (buffer - sizeof(ProtocolHeader));
 
     result.type = MessageType::RESPONSE;
 
     {
         std::lock_guard<std::mutex> lock(mx_deque_sending_data_);
-        sending_data_.emplace_back(result);
+        sending_data_.push_back(result);
     }
     return true;
 }
 
-bool Server::SendMessage(const struct sockaddr_in addr, char* buffer, const unsigned int& buffer_size, const MessageType& type) {
+bool Server::SendMessage(const struct sockaddr_in addr, char* buffer, const unsigned int& buffer_size, const MessageType& type, unsigned short* packet_numbers) {
     struct sockaddr_in client_addr = addr;
     std::cout << "sin_family: " << client_addr.sin_family << " sin_port: " << client_addr.sin_port << " addr: " << client_addr.sin_addr.s_addr << "\n";
     socklen_t len = sizeof(client_addr);
@@ -282,7 +315,13 @@ bool Server::SendMessage(const struct sockaddr_in addr, char* buffer, const unsi
 
     unsigned int offset = 0;
     while (remaining_bytes > 0) {
-        ++header.packet_number;
+        if (packet_numbers == nullptr) {
+            ++header.packet_number;            
+        } else {
+            header.packet_number = packet_numbers[counter];
+            //std::cout << "sending packet: " << header.packet_number << "\n";
+        }
+        ++counter;
         if (header.packet_number == header.packets_total) {
             std::cout << "sending last packet\n";
         }
@@ -291,7 +330,7 @@ bool Server::SendMessage(const struct sockaddr_in addr, char* buffer, const unsi
         memcpy(mbuffer + sizeof(ProtocolHeader), buffer + sent_bytes, data_size);
         test = reinterpret_cast<ProtocolHeader*>(mbuffer);
         if (header.packet_number == header.packets_total) {
-            std::cout << "Data copied to buffer\n";
+            //std::cout << "Data copied to buffer\n";
         }
         //std::cout << "remaining_bytes: " << remaining_bytes << "\n";
         int bytes_to_send = std::min(static_cast<unsigned int>(remaining_bytes + sizeof(ProtocolHeader)), MAX_PACKET_SIZE);
@@ -306,6 +345,10 @@ bool Server::SendMessage(const struct sockaddr_in addr, char* buffer, const unsi
         sent_bytes += bytes_sent - sizeof(ProtocolHeader);
         remaining_bytes -= bytes_sent - sizeof(ProtocolHeader);
         sleep(0.01);
+    }
+
+    if (packet_numbers != nullptr) {
+        delete[] packet_numbers;
     }
 
     return true;
@@ -358,6 +401,12 @@ ToSend Server::DoBusinessLogic(const unsigned int& client_id, const signed int& 
     memset(client.data, 0, arr.size());
     client.data_size = arr.size() * sizeof(double);
     memcpy(client.data, arr.data(), arr.size() * sizeof(double));
+    //std::cout << "reverse vector" << "\n";
+    memcpy(arr.data(), client.data, arr.size() * sizeof(double));
+    //std::cout << "reverse vector done" << "\n";
+
+    client_handler_.clients_[client_id] = client;
+
 
     to_send.data = client.data;
     to_send.data_size = arr.size() * sizeof(double);
