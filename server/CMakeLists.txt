@@ -8,4 +8,5 @@ add_executable(server
                main.cpp
                source/Server.cpp
                source/ConfReader.cpp
-               source/ClientHandler.cpp)
+               source/ClientHandler.cpp
+               source/Logger.cpp)

@@ -18,12 +18,10 @@
 
 struct Client {
     unsigned int id;
-    unsigned int value;
     struct sockaddr_in client_addr;
     char* data;
     unsigned int data_size;
     unsigned short* missed_packets;
-    char* GetDataByOffset(const unsigned int& offset);
     bool AllocateMemory(const unsigned int& size);
     bool AllocateMemoryMissedPackets(const unsigned int& size);
 };

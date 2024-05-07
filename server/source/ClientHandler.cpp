@@ -1,7 +1,6 @@
 #include "ClientHandler.hpp"
 
 ClientHandler::ClientHandler(const unsigned int& max_clients = 256) {
-    //available_client_ids_.reserve(max_clients);
     clients_.resize(max_clients);
     for(int i = 0; i < max_clients; ++i) {
         available_client_ids_.push_back(i);
@@ -16,7 +15,6 @@ unsigned int ClientHandler::AddClient(const struct sockaddr_in& client_addr) {
         client.id = available_client_ids_[0];
         available_client_ids_.pop_front();
     }
-    std::cout << "Got client id: " << client.id << "\n";
     
     {
         std::lock_guard<std::mutex> lock(mx_deque_clients_);
@@ -27,7 +25,6 @@ unsigned int ClientHandler::AddClient(const struct sockaddr_in& client_addr) {
 }
 
 bool ClientHandler::RemoveClient(const unsigned int& client_id) {
-    std::cout << "Removing client " << client_id << "\n";
     if (clients_[client_id].data != nullptr) {
         delete clients_[client_id].data;
     } else {
@@ -44,13 +41,6 @@ bool ClientHandler::RemoveClient(const unsigned int& client_id) {
 Client& ClientHandler::GetClient(const unsigned int& client_id) {
     return clients_[client_id];
 }
-
-char* Client::GetDataByOffset(const unsigned int& offset) {
-    return data + offset;
-}
-/*Client::~Client() {
-    delete data;
-}*/
 
 bool Client::AllocateMemory(const unsigned int& size) {
     try {

@@ -12,9 +12,7 @@ struct ServerConfig {
 
 struct ProtocolConfig {
     ProtocolConfig() {}
-    ProtocolConfig(const int& ver_maj, const int& ver_min, const unsigned int& val_amount);
-    int version_major;
-    int version_minor;
+    ProtocolConfig(const unsigned int& val_amount);
     unsigned int values_amount;
 };
 
