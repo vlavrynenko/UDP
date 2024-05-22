@@ -1,11 +1,11 @@
 #ifndef PROTOCOL_HPP
 #define PROTOCOL_HPP
 
-constexpr unsigned int PROTOCOL_VERSION_MAJOR = 1;
-constexpr unsigned int PROTOCOL_VERSION_MINOR = 0; 
+constexpr uint32_t PROTOCOL_VERSION_MAJOR = 1;
+constexpr uint32_t PROTOCOL_VERSION_MINOR = 0; 
 
-enum class MessageType {
-    ERROR = 0,
+enum class MessageType : uint8_t {
+    ERROR_CODE = 0,
     REQUEST = 1,
     ACKNOWLEDGE = 2,
     RESPONSE = 3,
@@ -13,38 +13,38 @@ enum class MessageType {
     CONNECT = 5
 };
 
-enum class ErrorCode {
+enum class ErrorCode : uint8_t {
     INVALID_VERSION = 0,
     INVALID_VALUE = 1,
     INVALID_HEADER = 2
 };
 
 struct ErrorHeader {
-    ErrorCode error : 8;
-    unsigned int version_major : 8;
-    unsigned int version_minor : 8;
+    ErrorCode error;
+    uint8_t version_major;
+    uint8_t version_minor;
 };
 
 struct ConnectHeader {
-    unsigned int version_major : 8;
-    unsigned int version_minor : 8;
+    uint8_t version_major;
+    uint8_t version_minor;
 };
 
 struct ProtocolHeader {
-    unsigned int packet_number : 16;
-    unsigned int packets_total : 16;
-    MessageType type : 8;
-    unsigned int data_size : 16;
+    uint16_t packet_number;
+    uint16_t packets_total;
+    uint16_t data_size;
+    MessageType type;
 };
 
 struct RequestHeader {
-    unsigned int client_id : 8;
+    uint8_t client_id;
     double value;
 };
 
 struct AcknowledgeHeader {
-    unsigned int client_id : 8;
-    unsigned int received_packet_number;
+    uint8_t client_id;
+    uint16_t received_packet_number;
 };
 
 struct ResponseHeader {
@@ -52,8 +52,8 @@ struct ResponseHeader {
 };
 
 struct MissedPacketsHeader {
-    unsigned int client_id : 8;
-    unsigned int total_packets_missed : 16;
+    uint8_t client_id;
+    uint16_t total_packets_missed;
 };
 
 #endif // PROTOCOL_HPP

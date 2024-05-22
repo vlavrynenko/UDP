@@ -3,14 +3,15 @@
 Logger::Logger(const std::string& filename) : filename_(filename) {
     logging_thread_ = std::thread([this]() {
         while (true) {
+            
             std::string message;
-            if (!logs_.empty()) {
-                std::lock_guard<std::mutex> lock(mx_);
+            {
+                std::unique_lock<std::mutex> lk(mx_);
+                cv_log.wait(lk, [this]{ return !logs_.empty(); });
                 message = logs_[0];
                 logs_.pop_front();
-            } else {
-                continue;
             }
+
             if (message == "END") {
                 break;
             }
@@ -42,6 +43,7 @@ void Logger::Log(const std::string& message) {
     {
             std::lock_guard<std::mutex> lock(mx_);
             logs_.push_back(message);
+            cv_log.notify_one();
     }
 }
 

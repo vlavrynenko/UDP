@@ -46,10 +46,10 @@ bool Client::Run() {
 
     int packet_num = 1;
     int offset = 0;
-    unsigned int total_packets = 0;
+    uint32_t total_packets = 0;
     ProtocolHeader* rheader;
     bool ack_received = false;
-    unsigned int retries = 5;
+    uint32_t retries = 5;
 
     //Send connection request
     ConnectHeader c_header;
@@ -74,7 +74,7 @@ bool Client::Run() {
                     int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&server_addr, &len);
                     ProtocolHeader* p_header = reinterpret_cast<ProtocolHeader*>(buffer);
                     if (p_header->type != MessageType::ACKNOWLEDGE) {
-                        if (p_header->type == MessageType::ERROR) {
+                        if (p_header->type == MessageType::ERROR_CODE) {
                             ErrorHeader* e_header = reinterpret_cast<ErrorHeader*>(buffer + sizeof(ProtocolHeader));
                             HandleError(*e_header);
                             break;   
@@ -113,8 +113,8 @@ bool Client::Run() {
     r_header.value = conf.value;;
     PrepareDataToSend(r_header, MessageType::REQUEST);
 
-    unsigned int packet_data_size = BUFFER_SIZE - sizeof(ProtocolHeader);
-    unsigned int total_packets_expected = 0;
+    uint32_t packet_data_size = BUFFER_SIZE - sizeof(ProtocolHeader);
+    uint32_t total_packets_expected = 0;
     len = sizeof(server_addr);
 
     ProtocolHeader* p_header;
@@ -126,7 +126,7 @@ bool Client::Run() {
             int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&server_addr, &len);
             p_header = reinterpret_cast<ProtocolHeader*>(buffer);
             if (p_header->type != MessageType::RESPONSE) {
-                if (p_header->type == MessageType::ERROR) {
+                if (p_header->type == MessageType::ERROR_CODE) {
                     ErrorHeader* e_header = reinterpret_cast<ErrorHeader*>(buffer + sizeof(ProtocolHeader));
                     HandleError(*e_header);
                     break;
@@ -159,7 +159,7 @@ bool Client::Run() {
             }
         }
     }
-    std::vector<unsigned short> missed_packets;
+    std::vector<uint16_t> missed_packets;
     for(short i = 1; i < packets_received.size(); ++i) {
         if(packets_received[i] == false) {
             missed_packets.push_back(i);
@@ -180,7 +180,7 @@ bool Client::Run() {
                     int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&server_addr, &len);
                     p_header = reinterpret_cast<ProtocolHeader*>(buffer);
                     if (p_header->type != MessageType::RESPONSE) {
-                        if (p_header->type == MessageType::ERROR) {
+                        if (p_header->type == MessageType::ERROR_CODE) {
                             ErrorHeader* e_header = reinterpret_cast<ErrorHeader*>(buffer + sizeof(ProtocolHeader));
                             HandleError(*e_header);
                             break;
@@ -258,14 +258,14 @@ bool Client::PrepareDataToSend(const T& header, const MessageType& type) {
     return true;
 }
 
-bool Client::PrepareMissingPackets(const std::vector<unsigned short>& missed_packets, const unsigned int id) {
+bool Client::PrepareMissingPackets(const std::vector<uint16_t>& missed_packets, const uint32_t id) {
     logger.Log(__func__);
     ProtocolHeader p_header;
     p_header.packet_number = packet_num;
     p_header.packets_total = 1;
     p_header.type = MessageType::MISSED_PACKETS;
-    p_header.data_size = (missed_packets.size()) * sizeof(unsigned short) + sizeof(MissedPacketsHeader);
-    const unsigned int buffer_size = (missed_packets.size()) * sizeof(unsigned short) + sizeof(MissedPacketsHeader) + sizeof(ProtocolHeader); 
+    p_header.data_size = (missed_packets.size()) * sizeof(uint16_t) + sizeof(MissedPacketsHeader);
+    const uint32_t buffer_size = (missed_packets.size()) * sizeof(uint16_t) + sizeof(MissedPacketsHeader) + sizeof(ProtocolHeader); 
 
     MissedPacketsHeader m_header;
     m_header.client_id = id;
@@ -274,14 +274,14 @@ bool Client::PrepareMissingPackets(const std::vector<unsigned short>& missed_pac
     char* buffer = new char[buffer_size];
     memcpy(buffer, &p_header, sizeof(ProtocolHeader));
     memcpy(buffer + sizeof(ProtocolHeader), &m_header, sizeof(MissedPacketsHeader));
-    memcpy(buffer + sizeof(ProtocolHeader) + sizeof(MissedPacketsHeader), missed_packets.data(), (missed_packets.size()) * sizeof(unsigned short));
+    memcpy(buffer + sizeof(ProtocolHeader) + sizeof(MissedPacketsHeader), missed_packets.data(), (missed_packets.size()) * sizeof(uint16_t));
     MissedPacketsHeader* m_header2 = reinterpret_cast<MissedPacketsHeader*>(buffer + sizeof(ProtocolHeader));
     SendMessage(buffer, buffer_size);
     delete buffer;
     return true;
 }
 
-bool Client::SendMessage(char* buffer, const unsigned int& buffer_size) {
+bool Client::SendMessage(char* buffer, const uint32_t& buffer_size) {
     if (sendto(sockfd, buffer, buffer_size, 0, (struct sockaddr *)&server_addr,
         #ifdef _WIN32
         sizeof(server_addr)) == SOCKET_ERROR

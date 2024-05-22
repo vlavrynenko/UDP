@@ -30,17 +30,17 @@
 struct Packet {
     struct sockaddr_in client_addr;
     char* buffer;
-    unsigned int buffer_size;
+    uint32_t buffer_size;
 };
 
 struct ToSend {
     MessageType type;
     struct sockaddr_in client_addr;
-    unsigned int data_size;
+    uint32_t data_size;
     char* data;
     bool custom_packet_number;
     bool delete_data;
-    unsigned short* packet_numbers;
+    uint16_t* packet_numbers;
 };
 
 class Server {
@@ -54,14 +54,14 @@ public:
     void StartReceiving();
     void StartSending();
     void ReadConfigs();
-    bool SendMessage(const struct sockaddr_in& client_addr, char* buffer, const unsigned int& buffer_size, const MessageType& type, unsigned short* packet_numbers = nullptr);
-    bool CheckVersion(const unsigned int& version_major, const unsigned int& version_minor);
-    bool ProcessRequest(const struct sockaddr_in& client_addr, char* buffer, const unsigned int& buffer_size);
-    void ProcessMissedPackets(const struct sockaddr_in& client_addr, char* buffer, const unsigned int& buffer_size);
-    void ProcessAcknowledge(const struct sockaddr_in& client_addr, char* buffer, const unsigned int& buffer_size);
-    void ProcessConnect(const struct sockaddr_in& client_addr, char* buffer, const unsigned int& buffer_size);
-    void SendAcknowledge(const struct sockaddr_in& client_addr, const unsigned int& client_id, const unsigned int& packet_number);
-    ToSend DoBusinessLogic(const unsigned int& client_id, const double& value);
+    bool SendMessage(const struct sockaddr_in& client_addr, char* buffer, const uint32_t& buffer_size, const MessageType& type, uint16_t* packet_numbers = nullptr);
+    bool CheckVersion(const uint32_t& version_major, const uint32_t& version_minor);
+    bool ProcessRequest(const struct sockaddr_in& client_addr, char* buffer, const uint32_t& buffer_size);
+    void ProcessMissedPackets(const struct sockaddr_in& client_addr, char* buffer, const uint32_t& buffer_size);
+    void ProcessAcknowledge(const struct sockaddr_in& client_addr, char* buffer, const uint32_t& buffer_size);
+    void ProcessConnect(const struct sockaddr_in& client_addr, char* buffer, const uint32_t& buffer_size);
+    void SendAcknowledge(const struct sockaddr_in& client_addr, const uint32_t& client_id, const uint32_t& packet_number);
+    ToSend DoBusinessLogic(const uint32_t& client_id, const double& value);
     void SendError(const struct sockaddr_in& client_addr, const ErrorCode& code);
 
     ~Server();
@@ -83,6 +83,8 @@ private:
     struct sockaddr_in server_addr_;
     Logger logger_;
     std::string log;
+    std::condition_variable cv_recv;
+    std::condition_variable cv_send;
 };
 
 #endif // SERVER_HPP

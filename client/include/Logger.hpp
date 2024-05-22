@@ -9,6 +9,7 @@
 #include <mutex>
 #include <deque>
 #include <thread>
+#include <condition_variable>
 
 class Logger {
 public:
@@ -22,6 +23,7 @@ private:
     std::deque<std::string> logs_;
     std::string filename_;
     std::mutex mx_;
+    std::condition_variable cv_log;
 };
 
 #endif // LOGGER_HPP

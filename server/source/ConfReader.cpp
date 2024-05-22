@@ -5,7 +5,7 @@ using json = nlohmann::json_abi_v3_11_3::json;
 
 ServerConfig::ServerConfig(const int& port) : server_port(port) {}
 
-ProtocolConfig::ProtocolConfig(const unsigned int& val_amount)
+ProtocolConfig::ProtocolConfig(const uint32_t& val_amount)
     : values_amount(val_amount) {}
 
 ConfReader::ConfReader(const std::string& path = "./") : path_(path) {}

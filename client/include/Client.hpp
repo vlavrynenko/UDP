@@ -33,14 +33,14 @@ public:
     bool Initialize();
     template<class T>
     bool PrepareDataToSend(const T& header, const MessageType& type);
-    bool RequestMissingPackets(const unsigned int& retries);
+    bool RequestMissingPackets(const uint32_t& retries);
     bool HandleError(const ErrorHeader& error);
 
-    bool PrepareMissingPackets(const std::vector<unsigned short>& missing_packets, const unsigned int id);
-    bool SendMessage(char* buffer, const unsigned int& buffer_size);
+    bool PrepareMissingPackets(const std::vector<uint16_t>& missing_packets, const uint32_t id);
+    bool SendMessage(char* buffer, const uint32_t& buffer_size);
     ~Client();
 private:
-    unsigned int client_id;
+    uint32_t client_id;
     struct sockaddr_in server_addr;
     #ifdef _WIN32
     WSADATA wsa;
@@ -53,8 +53,8 @@ private:
     std::vector<double> arr;
     struct pollfd pollStruct[1];
     std::vector<bool> packets_received;
-    unsigned int len;
-    unsigned int counter;
+    uint32_t len;
+    uint32_t counter;
     Logger logger;
     ServerConfig conf;
     ConfReader reader;

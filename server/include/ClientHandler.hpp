@@ -17,30 +17,27 @@
 #endif
 
 struct Client {
-    unsigned int id;
+    uint32_t id;
     struct sockaddr_in client_addr;
-    char* data;
-    unsigned int data_size;
-    unsigned short* missed_packets;
-    bool AllocateMemory(const unsigned int& size);
-    bool AllocateMemoryMissedPackets(const unsigned int& size);
+    std::vector<double> data;
+    uint32_t data_size; 
+    uint16_t* missed_packets;
 };
 
 class ClientHandler {
 public:
     ClientHandler() {}
-    ClientHandler(const unsigned int& max_clients);
-    unsigned int AddClient(const struct sockaddr_in& client_addr);
+    ClientHandler(const uint32_t& max_clients);
+    uint32_t AddClient(const struct sockaddr_in& client_addr);
     
-    bool RemoveClient(const unsigned int& client_id);
-    Client& GetClient(const unsigned int& client_id);
-    ~ClientHandler();
+    bool RemoveClient(const uint32_t& client_id);
+    Client& GetClient(const uint32_t& client_id);
     std::vector<Client> clients_;
 private:
     std::mutex mx_deque_clients_;
     std::mutex mx_deque_ids_;
-    std::deque<unsigned int> available_client_ids_;
-    unsigned int last_client_id_;
+    std::deque<uint32_t> available_client_ids_;
+    uint32_t last_client_id_;
 };
 
 #endif // CLIENT_HANDLER_HPP

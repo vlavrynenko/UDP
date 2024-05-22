@@ -12,8 +12,8 @@ struct ServerConfig {
 
 struct ProtocolConfig {
     ProtocolConfig() {}
-    ProtocolConfig(const unsigned int& val_amount);
-    unsigned int values_amount;
+    ProtocolConfig(const uint32_t& val_amount);
+    uint32_t values_amount;
 };
 
 class ConfReader {

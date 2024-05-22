@@ -1,13 +1,13 @@
 #include "ClientHandler.hpp"
 
-ClientHandler::ClientHandler(const unsigned int& max_clients = 256) {
+ClientHandler::ClientHandler(const uint32_t& max_clients = 256) {
     clients_.resize(max_clients);
     for(int i = 0; i < max_clients; ++i) {
         available_client_ids_.push_back(i);
     }
 }
 
-unsigned int ClientHandler::AddClient(const struct sockaddr_in& client_addr) {
+uint32_t ClientHandler::AddClient(const struct sockaddr_in& client_addr) {
     Client client;
     client.client_addr = client_addr;
     {
@@ -24,12 +24,7 @@ unsigned int ClientHandler::AddClient(const struct sockaddr_in& client_addr) {
     return client.id;
 }
 
-bool ClientHandler::RemoveClient(const unsigned int& client_id) {
-    if (clients_[client_id].data != nullptr) {
-        delete clients_[client_id].data;
-    } else {
-        return false;
-    }
+bool ClientHandler::RemoveClient(const uint32_t& client_id) {
     {
         std::lock_guard<std::mutex> lock(mx_deque_ids_);
         available_client_ids_.push_back(client_id);
@@ -38,32 +33,6 @@ bool ClientHandler::RemoveClient(const unsigned int& client_id) {
     return true;
 }
 
-Client& ClientHandler::GetClient(const unsigned int& client_id) {
+Client& ClientHandler::GetClient(const uint32_t& client_id) {
     return clients_[client_id];
-}
-
-bool Client::AllocateMemory(const unsigned int& size) {
-    try {
-        data = new char[size]();
-    } catch (...) {
-        std::cout << "Caught exception\n";
-    }
-    return true;
-}
-
-bool Client::AllocateMemoryMissedPackets(const unsigned int& size) {
-    try {
-        missed_packets = new unsigned short[size]();
-    } catch (...) {
-        std::cout << "Caught exception\n";
-    }
-    return true;
-}
-
-ClientHandler::~ClientHandler() {
-    for(auto client : clients_) {
-        if (client.data != nullptr) {
-            delete client.data;
-        }
-    }
 }
